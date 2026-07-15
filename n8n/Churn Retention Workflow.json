@@ -1,0 +1,179 @@
+{
+  "name": "Churn Retention Workflow",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "churn-predict",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "a5553e78-868c-402f-87de-6bf346a10a36",
+      "name": "Customer Data Trigger",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -864,
+        112
+      ],
+      "webhookId": "b7e6c1f2-churn-predict-0001"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://host.docker.internal:8000/predict",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"gender\": \"{{ $json.body.gender }}\",\n  \"SeniorCitizen\": {{ $json.body.SeniorCitizen }},\n  \"Partner\": \"{{ $json.body.Partner }}\",\n  \"Dependents\": \"{{ $json.body.Dependents }}\",\n  \"tenure\": {{ $json.body.tenure }},\n  \"PhoneService\": \"{{ $json.body.PhoneService }}\",\n  \"MultipleLines\": \"{{ $json.body.MultipleLines }}\",\n  \"InternetService\": \"{{ $json.body.InternetService }}\",\n  \"OnlineSecurity\": \"{{ $json.body.OnlineSecurity }}\",\n  \"OnlineBackup\": \"{{ $json.body.OnlineBackup }}\",\n  \"DeviceProtection\": \"{{ $json.body.DeviceProtection }}\",\n  \"TechSupport\": \"{{ $json.body.TechSupport }}\",\n  \"StreamingTV\": \"{{ $json.body.StreamingTV }}\",\n  \"StreamingMovies\": \"{{ $json.body.StreamingMovies }}\",\n  \"Contract\": \"{{ $json.body.Contract }}\",\n  \"PaperlessBilling\": \"{{ $json.body.PaperlessBilling }}\",\n  \"PaymentMethod\": \"{{ $json.body.PaymentMethod }}\",\n  \"MonthlyCharges\": {{ $json.body.MonthlyCharges }},\n  \"TotalCharges\": {{ $json.body.TotalCharges }}\n}",
+        "options": {}
+      },
+      "id": "531f5dd5-9ed4-46f0-b926-95ae5826ffc7",
+      "name": "Get Churn Prediction",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -608,
+        112
+      ]
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Churn prediction: {{ $json.churn_prediction }} (probability: {{ $json.churn_probability }})\n\nCustomer attributes:\n- Contract: {{ $('Customer Data Trigger').item.json.body.Contract }}\n- Tenure: {{ $('Customer Data Trigger').item.json.body.tenure }} months\n- Monthly charges: ${{ $('Customer Data Trigger').item.json.body.MonthlyCharges }}\n- Total charges: ${{ $('Customer Data Trigger').item.json.body.TotalCharges }}\n- Internet service: {{ $('Customer Data Trigger').item.json.body.InternetService }}\n- Online security: {{ $('Customer Data Trigger').item.json.body.OnlineSecurity }}\n- Tech support: {{ $('Customer Data Trigger').item.json.body.TechSupport }}\n- Streaming TV: {{ $('Customer Data Trigger').item.json.body.StreamingTV }}\n- Streaming movies: {{ $('Customer Data Trigger').item.json.body.StreamingMovies }}\n- Payment method: {{ $('Customer Data Trigger').item.json.body.PaymentMethod }}\n- Paperless billing: {{ $('Customer Data Trigger').item.json.body.PaperlessBilling }}\n- Senior citizen: {{ $('Customer Data Trigger').item.json.body.SeniorCitizen }}\n- Partner: {{ $('Customer Data Trigger').item.json.body.Partner }}\n- Dependents: {{ $('Customer Data Trigger').item.json.body.Dependents }}",
+        "options": {
+          "systemMessage": "You are a customer retention specialist. You are given a customer's churn probability and their account attributes (contract type, tenure, monthly charges, services subscribed). Assess their churn risk in one sentence, then recommend ONE specific, concrete retention action (e.g. contract upgrade incentive, service bundle discount, proactive support outreach, loyalty discount) with a one-sentence justification. Keep the entire response under 80 words, plain text, no markdown."
+        }
+      },
+      "id": "d06cfbe7-d685-482c-9757-246367a7aa88",
+      "name": "Retention Agent",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 1.7,
+      "position": [
+        -352,
+        112
+      ]
+    },
+    {
+      "parameters": {
+        "modelName": "models/gemini-flash-lite-latest",
+        "options": {}
+      },
+      "id": "ae3a29d9-19d3-411d-b56e-1df472fd9788",
+      "name": "Google Gemini Chat Model",
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1,
+      "position": [
+        -352,
+        336
+      ],
+      "credentials": {
+        "googlePalmApi": {
+          "id": "iyjlOC8OfTUwaPut",
+          "name": "Google Gemini(PaLM) Api account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "chatId": "8713099730",
+        "text": "=🚨 Churn Retention Alert\n\nChurn prediction: {{ $('Get Churn Prediction').item.json.churn_prediction }}\nChurn probability: {{ $('Get Churn Prediction').item.json.churn_probability }}\n\nRecommended action:\n{{ $json.output }}",
+        "additionalFields": {}
+      },
+      "id": "583faec0-6b83-4380-895e-cb7e37cc9b68",
+      "name": "Send Retention Alert",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        -48,
+        -16
+      ],
+      "webhookId": "ade4b242-a772-4fd1-9f41-223e6f2fa08f",
+      "credentials": {
+        "telegramApi": {
+          "id": "WN097Uulosqa9e7B",
+          "name": "Telegram account 4"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={\n  \"churn_prediction\": \"{{ $('Get Churn Prediction').item.json.churn_prediction }}\",\n  \"churn_probability\": {{ $('Get Churn Prediction').item.json.churn_probability }},\n  \"agent_recommendation\": {{ JSON.stringify($json.output) }}\n}",
+        "options": {}
+      },
+      "id": "1d89d6c4-c6b0-40cc-b225-224e18408b7c",
+      "name": "Return Result to Streamlit",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        -48,
+        224
+      ]
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Customer Data Trigger": {
+      "main": [
+        [
+          {
+            "node": "Get Churn Prediction",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Churn Prediction": {
+      "main": [
+        [
+          {
+            "node": "Retention Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Retention Agent": {
+      "main": [
+        [
+          {
+            "node": "Send Retention Alert",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Return Result to Streamlit",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Gemini Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Retention Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "6f821b9b-2556-4ae8-b8f1-4d93367d906b",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "296ffef701f927793e2d62eec71209d07f65056ae0969af9d994179fe588991c"
+  },
+  "nodeGroups": [],
+  "id": "aqR82RAe9dzaIQjD",
+  "tags": []
+}
